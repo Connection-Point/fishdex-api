@@ -261,7 +261,7 @@ class ScanToCollectionTest extends TestCase
         $this->decide($user, $encounterId, 'collect');
 
         $grid = $this->actingAs($user, 'sanctum')->getJson('/api/v1/collection')->assertOk();
-        $this->assertSame(20, $grid->json('meta.total'));
+        $this->assertSame(21, $grid->json('meta.total'));
         $this->assertSame(1, $grid->json('meta.collected'));
 
         $unseen = collect($grid->json('data'))->firstWhere('state', 'unseen');
@@ -270,7 +270,7 @@ class ScanToCollectionTest extends TestCase
         $this->actingAs($user, 'sanctum')->getJson('/api/v1/me/stats')
             ->assertOk()
             ->assertJsonPath('data.species_collected', 1)
-            ->assertJsonPath('data.total_in_catalogue', 20)
+            ->assertJsonPath('data.total_in_catalogue', 21)
             ->assertJsonPath('data.by_rarity.rare', 1);
     }
 }

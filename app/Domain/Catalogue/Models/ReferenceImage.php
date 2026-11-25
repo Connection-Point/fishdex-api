@@ -13,7 +13,11 @@ class ReferenceImage extends Model
     use HasPublicId;
 
     /** Licences allowed on a commercial app. Non-commercial (NC) and no-derivatives (ND) are rejected. */
-    public const ALLOWED_LICENSES = ['owned', 'licensed', 'cc0', 'public-domain', 'cc-by-4.0', 'cc-by-sa-4.0', 'cc-by-3.0', 'cc-by-sa-3.0', 'cc-by-2.0', 'cc-by-sa-2.0'];
+    public const ALLOWED_LICENSES = [
+        'owned', 'licensed', 'cc0', 'public-domain',
+        'cc-by-4.0', 'cc-by-sa-4.0', 'cc-by-3.0', 'cc-by-sa-3.0', 'cc-by-2.5', 'cc-by-sa-2.5',
+        'cc-by-2.0', 'cc-by-sa-2.0', 'cc-by-1.0', 'cc-by-sa-1.0',
+    ];
 
     protected $fillable = [
         'species_id', 'kind', 'disk', 'storage_key', 'width', 'height', 'blurhash', 'license', 'attribution',

@@ -55,7 +55,7 @@ class MalaysiaSampleCatalogueSeeder extends Seeder
                 'Large snakehead. Adults have a broad dark lateral band from eye to tail; juveniles are striped red-orange and black (often sold as "red snakehead"). Large mouth with strong teeth.'],
             ['Channa striata', 'Channidae', ['freshwater'], 'native', 'common', ['paddy_canal', 'swamp_peat', 'river', 'pond_kolam'], 'Striped snakehead', 'Haruan', ['Aruan'],
                 'Cylindrical body, dark chevron-like bars along the flank, pale belly. Smaller than toman and lacks the single broad dark band of adult toman.'],
-            ['Channa lucius', 'Channidae', ['freshwater'], 'native', 'uncommon', ['swamp_peat', 'river'], 'Splendid snakehead', 'Bujuk', [],
+            ['Channa lucius', 'Channidae', ['freshwater'], 'native', 'uncommon', ['swamp_peat', 'river'], 'Forest snakehead', 'Bujuk', ['Splendid snakehead'],
                 'Slender snakehead with a pointed, pike-like head and rows of dark blotches along the side.'],
             ['Tor tambroides', 'Cyprinidae', ['freshwater'], 'native', 'legendary', ['river'], 'Malaysian mahseer', 'Kelah', ['Kelah merah', 'Empurau'],
                 'Large, heavily scaled cyprinid of clear forest rivers. Fleshy median lobe on the lower lip; fins often reddish.'],
@@ -93,9 +93,16 @@ class MalaysiaSampleCatalogueSeeder extends Seeder
                 'Small barb with a dark mid-lateral stripe and thickened, fringed lips.'],
         ];
 
+        // Added after Series 1 was numbered: appended in this order so existing card numbers never shift.
+        $additions = [
+            ['Cichla ocellaris', 'Cichlidae', ['freshwater'], 'introduced', 'rare', ['lake_reservoir', 'pond_kolam', 'river'], 'Peacock bass', 'Peacock bass', ['Butterfly peacock bass'],
+                'Elongated predatory cichlid with a large mouth, three dark vertical bars, reddish lower fins and a gold-ringed black eye-spot at the tail base. Introduced into lakes and old mining pools.'],
+        ];
+        $species = array_merge($species, $additions);
+
         $resolver = app(RarityResolver::class);
 
-        DB::transaction(function () use ($species, $familyIds, $my, $tiers, $habitats, $resolver) {
+        DB::transaction(function () use ($species, $additions, $familyIds, $my, $tiers, $habitats, $resolver) {
             foreach ($species as [$sci, $family, $water, $origin, $rarity, $habitatCodes, $en, $ms, $aliases, $notes]) {
                 $s = FishSpecies::query()->updateOrCreate(['scientific_name' => $sci], [
                     'family_id' => $familyIds[$family],
@@ -136,15 +143,19 @@ class MalaysiaSampleCatalogueSeeder extends Seeder
                 FishSpecies::query()->whereKey($ids[$b])->update(['lookalike_species_ids' => json_encode([$ids[$a]])]);
             }
 
-            // Launch card set: numbered by family, then scientific name.
+            // Launch card set: the original 20 numbered by family, then scientific name; additions appended.
             $set = CardSet::query()->updateOrCreate(['code' => config('fishdex.catalogue.default_card_set')], [
                 'name' => 'Malaysia — Series 1', 'country_id' => $my->id, 'theme' => 'Rivers to Reefs', 'is_active' => true,
             ]);
 
-            $ordered = FishSpecies::query()->whereIn('fish_species.scientific_name', array_column($species, 0))
+            $core = array_diff(array_column($species, 0), array_column($additions, 0));
+            $ordered = FishSpecies::query()->whereIn('fish_species.scientific_name', $core)
                 ->join('taxon_families', 'taxon_families.id', '=', 'fish_species.family_id')
                 ->orderBy('taxon_families.scientific_name')->orderBy('fish_species.scientific_name')
                 ->pluck('fish_species.id');
+            foreach (array_column($additions, 0) as $sci) {
+                $ordered->push($ids[$sci] ?? FishSpecies::query()->where('scientific_name', $sci)->value('id'));
+            }
 
             foreach ($ordered->values() as $i => $speciesId) {
                 FishCard::query()->updateOrCreate(

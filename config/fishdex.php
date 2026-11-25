@@ -16,6 +16,13 @@ return [
 
     'min_supported_app_version' => env('FISHDEX_MIN_APP_VERSION', '1.0.0'),
 
+    // Hosting mode. On serverless hosts (Vercel) there is no queue worker or scheduler:
+    // scans run during the app's status poll and maintenance runs from a daily cron URL.
+    'runtime' => [
+        'inline_scans' => (bool) env('FISHDEX_INLINE_SCANS', false),
+        'cron_secret' => env('CRON_SECRET'),
+    ],
+
     'catalogue' => [
         'default_card_set' => env('FISHDEX_DEFAULT_CARD_SET', 'MY-S1'),
         'cache_ttl' => 3600,
@@ -32,6 +39,13 @@ return [
             'ai' => ['long_side' => 1024, 'format' => 'jpg', 'quality' => 85],
             'card' => ['long_side' => 1080, 'format' => 'webp', 'quality' => 82],
             'thumb' => ['long_side' => 320, 'format' => 'webp', 'quality' => 75],
+        ],
+        // Card art imported with fishdex:import-card-art. The FishCardView art window is ~0.9:1 (w:h).
+        'card_art' => [
+            'width' => 1152,
+            'height' => 1280,
+            'crop_bottom' => 0.09, // fraction of height removed first (generator watermark strip)
+            'quality' => 88,
         ],
         'signed_url_ttl_minutes' => ['full' => 15, 'thumb' => 360],
         'abandoned_scan_purge_days' => 14,

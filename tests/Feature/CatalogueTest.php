@@ -57,7 +57,7 @@ class CatalogueTest extends TestCase
         $this->assertSame(['Tor tambroides'], $legendary);
 
         $snap = $this->actingAs($user, 'sanctum')->getJson('/api/v1/catalogue/snapshot')->assertOk();
-        $this->assertCount(20, $snap->json('data.species'));
+        $this->assertCount(21, $snap->json('data.species'));
         $etag = $snap->headers->get('ETag');
 
         $this->actingAs($user, 'sanctum')->withHeader('If-None-Match', $etag)->getJson('/api/v1/catalogue/snapshot')->assertStatus(304);

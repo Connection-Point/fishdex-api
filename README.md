@@ -166,6 +166,8 @@ To script AI results in tests, use `FakeProvider::push(...)`.
 |---|---|
 | `fishdex:create-admin {email} --role=` | Create or update a staff account (`super_admin`, `catalogue_editor`, `reviewer`, `support`) |
 | `fishdex:import-catalogue {file.csv} [--dry-run]` | Bulk import or update species (column list in the command's docblock) |
+| `fishdex:import-card-art [dir] [--crop-bottom=0.09] [--dry-run]` | Import card art named by species (`GiantSnakehead.png`, `Tenggiri.png`). Cuts the bottom watermark strip, fits the card art window (1152×1280 WebP) and attaches it to the species' cards. Re-run to replace |
+| `fishdex:fetch-images [--species=] [--verify]` | Import licence-checked reference photos from Wikimedia Commons |
 | `fishdex:ai-eval {dir} [--provider=] [--limit=] [--skip=]` | Accuracy benchmark on labelled photos: `dir/Genus species/*.jpg` |
 | `fishdex:release-waiting-scans` | *(scheduled)* Re-queue scans parked for AI capacity |
 | `fishdex:sweep-stuck-scans` | *(scheduled)* Recover or time out stuck scans |
@@ -194,6 +196,18 @@ database/            migrations, factories, seeders (sample catalogue is dev-onl
 docs/                architecture and product docs
 tests/               feature + unit tests
 ```
+
+## Deploying to Vercel (beta)
+
+Serverless mode for the closed beta: Vercel Container runtime + TiDB Cloud (MySQL-compatible) + Cloudflare R2.
+There is no queue worker or scheduler there, so:
+
+- `FISHDEX_INLINE_SCANS=true`: uploads only record the scan; the app's status poll (`GET /api/v1/scans/{id}`) runs the AI step.
+- Maintenance runs once a day from Vercel Cron → `GET /internal/cron/daily` (needs `CRON_SECRET`).
+- Files: `Dockerfile.vercel`, `vercel.json`, `deploy/vercel/` (Caddyfile, php.ini, env templates).
+
+Run migrations, seeding, admin creation and card-art import from your PC against TiDB with `--env=tidb`
+(template: `deploy/vercel/tidb.env.example`). Vercel never runs migrations.
 
 ## Deploying to production
 

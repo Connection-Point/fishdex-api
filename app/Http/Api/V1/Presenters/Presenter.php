@@ -81,7 +81,11 @@ class Presenter
 
     public function thumbnail(FishSpecies $s): ?string
     {
-        $img = $s->relationLoaded('images') ? $s->images->firstWhere('is_primary', true) ?? $s->images->first() : null;
+        // Only curator-verified images are ever shown to anglers. Card art wins over reference photos.
+        $verified = $s->relationLoaded('images') ? $s->images->where('is_verified', true) : collect();
+        $art = $verified->where('kind', 'card_art');
+        $img = $art->firstWhere('is_primary', true) ?? $art->first()
+            ?? $verified->firstWhere('is_primary', true) ?? $verified->first();
 
         return $img?->url();
     }
@@ -138,7 +142,7 @@ class Presenter
             'legal_notice' => $status && $status->legal_protection !== 'none'
                 ? ['protection' => $status->legal_protection, 'notes' => $status->legal_notes]
                 : null,
-            'images' => $s->images->where('is_verified', true)->map(fn ($i) => [
+            'images' => $s->images->where('is_verified', true)->sortBy(fn ($i) => $i->kind === 'card_art' ? 0 : 1)->map(fn ($i) => [
                 'id' => $i->public_id,
                 'kind' => $i->kind,
                 'url' => $i->url(),
