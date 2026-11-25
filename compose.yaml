@@ -1,0 +1,41 @@
+# Local development services for FishDex (PHP runs on your machine, e.g. Laragon/Herd).
+#   docker compose up -d
+# MySQL :3306 · Redis :6379 · MinIO (S3/R2 stand-in) :9000 / console :9001 · Mailpit UI :8025
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: fishdex
+      MYSQL_USER: fishdex
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    ports: ["3306:3306"]
+    volumes: [mysql:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: [redis:/data]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: fishdex
+      MINIO_ROOT_PASSWORD: fishdex-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [minio:/data]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+
+volumes:
+  mysql:
+  redis:
+  minio:
