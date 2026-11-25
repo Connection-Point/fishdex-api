@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Catalogue\Models\Country;
 use App\Domain\Identity\Models\User;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -86,5 +87,15 @@ class AuthTest extends TestCase
         $this->actingAs($user, 'sanctum')->withHeader('X-App-Version', '1.1.9+40')->getJson('/api/v1/me')
             ->assertStatus(426)->assertJsonPath('code', 'app_version_unsupported');
         $this->actingAs($user, 'sanctum')->withHeader('X-App-Version', '1.2.0+41')->getJson('/api/v1/me')->assertOk();
+    }
+
+    public function test_registration_reports_missing_reference_data_clearly(): void
+    {
+        config(['fishdex.default_country' => 'ZZ']); // simulate unseeded reference data
+        Http::fake(['api.pwnedpasswords.com/*' => Http::response('', 200)]);
+
+        $this->postJson('/api/v1/auth/register', [
+            'email' => 'a@b.com', 'password' => 'toman-hunter-99', 'display_name' => 'A', 'handle' => 'aaa', 'device_name' => 'x',
+        ])->assertStatus(503)->assertJsonPath('code', 'server_not_configured');
     }
 }
