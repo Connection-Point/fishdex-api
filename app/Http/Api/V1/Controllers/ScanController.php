@@ -5,6 +5,7 @@ namespace App\Http\Api\V1\Controllers;
 use App\Domain\Catalogue\Models\FishSpecies;
 use App\Domain\Encounter\Actions\ConfirmIdentification;
 use App\Domain\Identification\Models\IdentificationRequest;
+use App\Domain\Identification\Services\InlineScanRunner;
 use App\Domain\Identification\Services\ScanService;
 use App\Http\Api\V1\Presenters\Presenter;
 use App\Http\Controllers\Controller;
@@ -49,9 +50,9 @@ class ScanController extends Controller
         ]);
     }
 
-    public function show(Request $request, string $scanId): JsonResponse
+    public function show(Request $request, string $scanId, InlineScanRunner $inline): JsonResponse
     {
-        return response()->json(['data' => $this->present->scan($this->find($request, $scanId))]);
+        return response()->json(['data' => $this->present->scan($inline->advance($this->find($request, $scanId)))]);
     }
 
     public function confirm(Request $request, string $scanId, ConfirmIdentification $confirm): JsonResponse

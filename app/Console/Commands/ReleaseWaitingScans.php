@@ -18,6 +18,10 @@ class ReleaseWaitingScans extends Command
 
     public function handle(AiCapacity $capacity, AiBudgetGuard $budget): int
     {
+        if (config('fishdex.runtime.inline_scans')) {
+            return self::SUCCESS; // waiting scans are retried by the app's status poll
+        }
+
         if (! $budget->allowsNewScans()) {
             return self::SUCCESS;
         }

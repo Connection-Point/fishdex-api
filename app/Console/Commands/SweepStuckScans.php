@@ -16,6 +16,17 @@ class SweepStuckScans extends Command
 
     public function handle(): int
     {
+        if (config('fishdex.runtime.inline_scans')) {
+            // No worker: scans only run while the app polls. Time out ones nobody polled for an hour.
+            $n = IdentificationRequest::query()
+                ->whereIn('status', [ScanStatus::Processing, ScanStatus::Queued, ScanStatus::WaitingCapacity])
+                ->where('updated_at', '<', now()->subHour())
+                ->update(['status' => ScanStatus::TimedOut, 'error_code' => 'timed_out', 'completed_at' => now(), 'updated_at' => now()]);
+            $this->info("Timed out {$n} abandoned scan(s).");
+
+            return self::SUCCESS;
+        }
+
         $stuck = IdentificationRequest::query()
             ->whereIn('status', [ScanStatus::Processing, ScanStatus::Queued])
             ->where('updated_at', '<', now()->subMinutes(2))

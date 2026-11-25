@@ -95,7 +95,9 @@ class ScanService
             return $scan;
         });
 
-        RunIdentification::dispatch($scan->id)->afterCommit();
+        if (! config('fishdex.runtime.inline_scans')) {
+            RunIdentification::dispatch($scan->id)->afterCommit(); // otherwise the status poll runs it (InlineScanRunner)
+        }
 
         return $scan->refresh();
     }

@@ -80,7 +80,9 @@ return new class extends Migration
             $table->foreign('region_id')->references('id')->on('regions');
             $table->index(['species_id', 'locale', 'is_primary']);
 
-            if (Schema::getConnection()->getDriverName() === 'mysql') {
+            // TiDB (MySQL-compatible, used for serverless hosting) has no FULLTEXT indexes.
+            $connection = Schema::getConnection();
+            if ($connection->getDriverName() === 'mysql' && ! str_contains((string) $connection->selectOne('select version() as v')->v, 'TiDB')) {
                 $table->fullText('name');
             }
         });

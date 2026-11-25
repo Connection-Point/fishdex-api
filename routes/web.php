@@ -1,8 +1,12 @@
 <?php
 
 use App\Domain\Identity\Models\User;
+use App\Http\Controllers\CronController;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Route;
+
+// Vercel Cron (serverless hosting). Bearer CRON_SECRET; 404 otherwise.
+Route::get('/internal/cron/daily', [CronController::class, 'daily']);
 
 Route::get('/', fn () => response()->json(['name' => 'FishDex API', 'docs' => '/api/v1/health']));
 

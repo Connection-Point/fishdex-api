@@ -1,0 +1,45 @@
+# FishDex API on Vercel (Container runtime). Local dev does not use this file.
+# Build: Vercel builds it automatically on deploy. Runtime config comes from Vercel environment variables.
+
+FROM dunglas/frankenphp:1-php8.4-bookworm AS base
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+ && install-php-extensions pdo_mysql gd intl zip bcmath exif opcache pcntl
+COPY deploy/vercel/php.ini $PHP_INI_DIR/conf.d/zz-fishdex.ini
+WORKDIR /app
+
+# Dependencies (cached unless composer.json/lock change)
+FROM base AS vendor
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
+
+FROM base AS runtime
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY --from=vendor /app/vendor ./vendor
+COPY . .
+COPY deploy/vercel/Caddyfile /etc/frankenphp/Caddyfile
+RUN composer dump-autoload --optimize --no-dev \
+ && php artisan package:discover --ansi \
+ && php artisan filament:assets \
+ && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+ && chown -R www-data:www-data storage bootstrap/cache \
+ && setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp
+
+# Serverless defaults (override in Vercel → Settings → Environment Variables if needed)
+ENV PORT=8080 \
+    APP_ENV=production \
+    APP_DEBUG=false \
+    LOG_CHANNEL=stderr \
+    LOG_LEVEL=info \
+    CACHE_STORE=database \
+    SESSION_DRIVER=database \
+    QUEUE_CONNECTION=sync \
+    FISHDEX_INLINE_SCANS=true \
+    TRUSTED_PROXIES=* \
+    MEDIA_DRIVER=s3 \
+    ASSETS_DRIVER=s3 \
+    MYSQL_ATTR_SSL_CA=/etc/ssl/certs/ca-certificates.crt
+
+USER www-data
+EXPOSE 8080
+CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile"]

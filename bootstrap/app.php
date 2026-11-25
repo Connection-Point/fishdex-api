@@ -27,6 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Behind a hosting proxy (Vercel, Cloudflare): TRUSTED_PROXIES=* so HTTPS URLs and client IPs are right.
+        if ($proxies = env('TRUSTED_PROXIES')) {
+            $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
         $middleware->api(append: [
             SetLocaleFromHeader::class,
             EnsureAppVersionSupported::class,
