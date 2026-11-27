@@ -10,13 +10,19 @@ use App\Domain\Identification\Exceptions\InvalidProviderOutput;
 use App\Domain\Identification\Exceptions\ProviderRateLimited;
 use App\Domain\Identification\Exceptions\ProviderUnavailable;
 use App\Domain\Identification\Prompts\IdentificationPrompts;
+use Closure;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Google Gemini via the REST generateContent endpoint (no SDK lock-in).
  * The API key lives only on the server (backend-controlled AI requests).
+ *
+ * When a model is overloaded (5xx / timeout — common for newly released free models), the same
+ * request is retried on the next model in `fallback_models`. Quota errors (429) are not retried
+ * here: the pipeline parks the scan until capacity returns.
  */
 class GeminiProvider implements IdentificationProvider
 {
@@ -34,14 +40,40 @@ class GeminiProvider implements IdentificationProvider
 
     public function identify(IdentificationInput $input): ProviderResult
     {
-        return $this->call($this->model(), IdentificationPrompts::open($input), $input, IdentificationPrompts::responseSchema(false));
+        return $this->withFallback(
+            $this->model(),
+            fn (string $model) => $this->call($model, IdentificationPrompts::open($input), $input, IdentificationPrompts::responseSchema(false)),
+        );
     }
 
     public function rerank(RerankInput $input): ProviderResult
     {
         $model = $this->config['rerank_model'] ?: $this->model();
 
-        return $this->call($model, IdentificationPrompts::rerank($input), $input->base, IdentificationPrompts::responseSchema(true));
+        return $this->withFallback(
+            $model,
+            fn (string $m) => $this->call($m, IdentificationPrompts::rerank($input), $input->base, IdentificationPrompts::responseSchema(true)),
+        );
+    }
+
+    /** @param Closure(string): ProviderResult $run */
+    private function withFallback(string $primary, Closure $run): ProviderResult
+    {
+        $models = array_values(array_unique(array_filter([$primary, ...($this->config['fallback_models'] ?? [])])));
+
+        foreach ($models as $i => $model) {
+            try {
+                return $run($model);
+            } catch (ProviderUnavailable $e) {
+                $overloaded = $e->isTimeout || in_array($e->httpStatus, [500, 502, 503, 504], true);
+                if (! $overloaded || $i === count($models) - 1) {
+                    throw $e;
+                }
+                Log::warning("Gemini {$model} unavailable, falling back to {$models[$i + 1]}", ['error' => $e->getMessage()]);
+            }
+        }
+
+        throw new ProviderUnavailable('No Gemini model configured.');
     }
 
     private function call(string $model, string $prompt, IdentificationInput $input, array $schema): ProviderResult

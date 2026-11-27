@@ -63,11 +63,14 @@ return [
                 'api_key' => env('GEMINI_API_KEY'),
                 'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
                 // Copy the exact model ID from AI Studio; IDs change often.
-                'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
+                'model' => env('GEMINI_MODEL', 'gemini-4-hydrogen'),
+                // Tried in order when the model above is overloaded (5xx/timeout). Comma-separated; empty to disable.
+                'fallback_models' => array_values(array_filter(array_map('trim', explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-3.8-flash'))))),
                 'rerank_model' => env('GEMINI_RERANK_MODEL'),
-                'timeout' => (int) env('GEMINI_TIMEOUT', 20),
+                'timeout' => (int) env('GEMINI_TIMEOUT', 30),
                 'temperature' => 0.2,
-                'max_output_tokens' => 1024,
+                // Thinking models count their reasoning here too; too low cuts the JSON answer off (finishReason=MAX_TOKENS).
+                'max_output_tokens' => (int) env('GEMINI_MAX_OUTPUT_TOKENS', 4096),
                 // Optional passthrough, e.g. {"thinkingLevel":"low"}. Thinking tokens bill as output.
                 'thinking_config' => json_decode((string) env('GEMINI_THINKING_CONFIG', 'null'), true),
             ],
@@ -77,6 +80,7 @@ return [
         // USD per 1M tokens. Free tier is always 0. Update when prices change.
         'prices' => [
             'gemini-3.6-flash' => ['input' => 1.50, 'output' => 7.50],
+            'gemini-4-hydrogen' => ['input' => 1.50, 'output' => 7.50],
         ],
 
         'free_tier' => [

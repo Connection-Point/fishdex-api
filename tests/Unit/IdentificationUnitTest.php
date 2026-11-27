@@ -7,6 +7,7 @@ use App\Domain\Catalogue\Models\SpeciesSynonym;
 use App\Domain\Identification\Data\IdentificationInput;
 use App\Domain\Identification\Data\RawCandidate;
 use App\Domain\Identification\Exceptions\ProviderRateLimited;
+use App\Domain\Identification\Exceptions\ProviderUnavailable;
 use App\Domain\Identification\Providers\GeminiProvider;
 use App\Domain\Identification\Services\CandidateMatcher;
 use App\Domain\Identification\Services\ConfidenceScorer;
@@ -104,5 +105,65 @@ class IdentificationUnitTest extends TestCase
 
         $this->expectException(ProviderRateLimited::class);
         $provider->identify($input);
+    }
+
+    public function test_overloaded_model_falls_back_to_the_next_model(): void
+    {
+        $config = config('fishdex.ai.providers.gemini');
+        $config['api_key'] = 'test-key';
+        $config['model'] = 'gemini-4-hydrogen';
+        $config['fallback_models'] = ['gemini-3.8-flash'];
+        $provider = new GeminiProvider($config);
+        $input = new IdentificationInput('jpeg-bytes', 'image/jpeg', 'Malaysia', null);
+
+        $ok = ['candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'candidates' => [['scientific_name' => 'Channa striata', 'common_name' => 'Haruan', 'confidence' => 0.9, 'visible_features' => []]],
+            'flags' => [],
+        ])]]], 'finishReason' => 'STOP']]];
+
+        Http::fake([
+            '*/models/gemini-4-hydrogen:*' => Http::response(['error' => ['code' => 503, 'status' => 'UNAVAILABLE', 'message' => 'This model is currently experiencing high demand.']], 503),
+            '*/models/gemini-3.8-flash:*' => Http::response($ok),
+        ]);
+
+        $result = $provider->identify($input);
+        $this->assertSame('gemini-3.8-flash', $result->model, 'attempt is logged against the model that answered');
+        $this->assertSame('Channa striata', $result->candidates[0]->scientificName);
+        Http::assertSentCount(2);
+    }
+
+    public function test_when_every_model_is_overloaded_the_last_error_is_raised(): void
+    {
+        $config = config('fishdex.ai.providers.gemini');
+        $config['api_key'] = 'test-key';
+        $config['model'] = 'gemini-4-hydrogen';
+        $config['fallback_models'] = ['gemini-3.8-flash'];
+        $provider = new GeminiProvider($config);
+        $input = new IdentificationInput('jpeg-bytes', 'image/jpeg', 'Malaysia', null);
+
+        Http::fake(['*' => Http::response(['error' => ['code' => 503, 'status' => 'UNAVAILABLE', 'message' => 'busy']], 503)]);
+        try {
+            $provider->identify($input);
+            $this->fail('expected ProviderUnavailable');
+        } catch (ProviderUnavailable $e) {
+            $this->assertSame(503, $e->httpStatus);
+        }
+        Http::assertSentCount(2);
+    }
+
+    public function test_rate_limit_is_not_retried_on_another_model(): void
+    {
+        $config = config('fishdex.ai.providers.gemini');
+        $config['api_key'] = 'test-key';
+        $config['fallback_models'] = ['gemini-3.8-flash'];
+        $provider = new GeminiProvider($config);
+
+        Http::fake(['*' => Http::response(['error' => ['code' => 429, 'status' => 'RESOURCE_EXHAUSTED', 'message' => 'Quota']], 429)]);
+        $this->expectException(ProviderRateLimited::class);
+        try {
+            $provider->identify(new IdentificationInput('jpeg-bytes', 'image/jpeg', 'Malaysia', null));
+        } finally {
+            Http::assertSentCount(1);
+        }
     }
 }
